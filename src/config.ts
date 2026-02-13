@@ -8,14 +8,6 @@ import * as fs from 'fs';
 // Load environment variables
 dotenvConfig();
 
-
-interface PoolConfig {
-  minSize: number;
-  maxSize: number;
-  idleTimeout: number;
-  acquireTimeout: number;
-}
-
 interface TimeoutConfig {
   applescript: number;
   operation: number;
@@ -27,32 +19,25 @@ interface LogConfig {
   file?: string | undefined;
 }
 
-interface RetryConfig {
-  maxAttempts: number;
-  backoffMultiplier: number;
-  initialDelay: number;
-  maxDelay: number;
-}
-
 export interface Config {
   // Server settings
   server: {
     name: string;
     version: string;
   };
-  
-  // Connection pool settings
-  pool: PoolConfig;
-  
+
   // Timeout settings
   timeouts: TimeoutConfig;
-  
+
+  // Delay settings (milliseconds)
+  delays: {
+    urlScheme: number;      // Delay after URL scheme execution (default: 2000)
+    todoSearch: number;     // Delay before searching for created TODO (default: 500)
+  };
+
   // Logging settings
   log: LogConfig;
-  
-  // Retry settings
-  retry: RetryConfig;
-  
+
   // Feature flags
   features: {
     errorCorrection: boolean;
@@ -94,9 +79,9 @@ function getVersion(): string {
   try {
     const packagePath = path.join(process.cwd(), 'package.json');
     const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-    return packageData.version || '0.1.0';
+    return packageData.version || '1.0.0';
   } catch {
-    return '0.1.0';
+    return '1.0.0';
   }
 }
 
@@ -110,33 +95,23 @@ export function loadConfig(): Config {
       name: env['MCP_SERVER_NAME'] || 'things3-mcp-server',
       version: getVersion()
     },
-    
-    
-    pool: {
-      minSize: parseInt(env['POOL_MIN_SIZE'], 2),
-      maxSize: parseInt(env['POOL_MAX_SIZE'], 5),
-      idleTimeout: parseInt(env['POOL_IDLE_TIMEOUT'], 60000), // 1 minute
-      acquireTimeout: parseInt(env['POOL_ACQUIRE_TIMEOUT'], 5000) // 5 seconds
-    },
-    
+
     timeouts: {
       applescript: parseInt(env['TIMEOUT_APPLESCRIPT'], 30000), // 30 seconds
       operation: parseInt(env['TIMEOUT_OPERATION'], 60000) // 60 seconds
     },
-    
+
+    delays: {
+      urlScheme: parseInt(env['DELAY_URL_SCHEME'], 2000),
+      todoSearch: parseInt(env['DELAY_TODO_SEARCH'], 500),
+    },
+
     log: {
       level: parseLogLevel(env['LOG_LEVEL']),
       format: env['LOG_FORMAT'] === 'json' ? 'json' : 'text',
       file: env['LOG_FILE']
     },
-    
-    retry: {
-      maxAttempts: parseInt(env['RETRY_MAX_ATTEMPTS'], 3),
-      backoffMultiplier: parseFloat(env['RETRY_BACKOFF_MULTIPLIER'] || '2'),
-      initialDelay: parseInt(env['RETRY_INITIAL_DELAY'], 1000), // 1 second
-      maxDelay: parseInt(env['RETRY_MAX_DELAY'], 30000) // 30 seconds
-    },
-    
+
     features: {
       errorCorrection: parseBoolean(env['FEATURE_ERROR_CORRECTION'], true),
       autoLaunchThings3: parseBoolean(env['FEATURE_AUTO_LAUNCH'], true),
@@ -148,25 +123,9 @@ export function loadConfig(): Config {
 /**
  * Validate configuration
  */
-export function validateConfig(config: Config): void {
-  // Validate pool settings
-  if (config.pool.minSize > config.pool.maxSize) {
-    throw new Error('Pool minSize cannot be greater than maxSize');
-  }
-  
-  if (config.pool.minSize < 0 || config.pool.maxSize < 1) {
-    throw new Error('Pool sizes must be positive');
-  }
-  
-  
-  // Validate retry settings
-  if (config.retry.maxAttempts < 1) {
-    throw new Error('Retry maxAttempts must be at least 1');
-  }
-  
-  if (config.retry.backoffMultiplier < 1) {
-    throw new Error('Retry backoffMultiplier must be at least 1');
-  }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function validateConfig(_config: Config): void {
+  // Timeouts and feature flags have sensible defaults, no validation needed
 }
 
 /**
@@ -196,7 +155,7 @@ export function updateConfig(updates: Partial<Config>): void {
   if (!configInstance) {
     configInstance = loadConfig();
   }
-  
+
   // Deep merge updates
   configInstance = deepMerge(configInstance, updates) as Config;
   validateConfig(configInstance!);
@@ -208,7 +167,7 @@ export function updateConfig(updates: Partial<Config>): void {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function deepMerge(target: any, source: any): any {
   const result = { ...target };
-  
+
   for (const key in source) {
     if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
       result[key] = deepMerge(result[key] || {}, source[key]);
@@ -216,7 +175,7 @@ function deepMerge(target: any, source: any): any {
       result[key] = source[key];
     }
   }
-  
+
   return result;
 }
 

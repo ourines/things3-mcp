@@ -15,8 +15,6 @@ export enum ErrorType {
   TIMEOUT = 'TIMEOUT',
   UNKNOWN = 'UNKNOWN',
   INVALID_REFERENCE = 'INVALID_REFERENCE',
-  MAX_RETRIES = 'MAX_RETRIES',
-  CIRCUIT_OPEN = 'CIRCUIT_OPEN',
 }
 
 /**
@@ -31,22 +29,4 @@ export class Things3Error extends Error {
     super(message);
     this.name = 'Things3Error';
   }
-}
-
-
-/**
- * Configuration options for the server
- */
-export interface ServerConfig {
-  /** Timeout for AppleScript execution in milliseconds */
-  appleScriptTimeout?: number;
-  
-  /** Cache TTL in seconds */
-  cacheTTL?: number;
-  
-  /** Whether to enable debug logging */
-  debug?: boolean;
-  
-  /** Maximum number of retries for failed operations */
-  maxRetries?: number;
 }

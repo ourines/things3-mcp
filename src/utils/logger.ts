@@ -27,10 +27,11 @@ interface LogEntry {
 
 export class Logger {
   private static instance: Logger;
+  private static sharedFileStream: fs.WriteStream | undefined;
+  private static fileStreamInitialized = false;
   private config = getConfig().log;
-  private fileStream?: fs.WriteStream;
   private context?: string;
-  
+
   private readonly levelMap: Record<string, LogLevel> = {
     debug: LogLevel.DEBUG,
     info: LogLevel.INFO,
@@ -42,15 +43,16 @@ export class Logger {
     if (context) {
       this.context = context;
     }
-    
-    // Set up file logging if configured
-    if (this.config.file) {
+
+    // Set up shared file logging once
+    if (!Logger.fileStreamInitialized && this.config.file) {
+      Logger.fileStreamInitialized = true;
       const logDir = path.dirname(this.config.file);
       if (!fs.existsSync(logDir)) {
         fs.mkdirSync(logDir, { recursive: true });
       }
-      
-      this.fileStream = fs.createWriteStream(this.config.file, {
+
+      Logger.sharedFileStream = fs.createWriteStream(this.config.file, {
         flags: 'a',
         encoding: 'utf8'
       });
@@ -58,18 +60,23 @@ export class Logger {
   }
 
   /**
-   * Get logger instance
+   * Get the root logger singleton (no context)
    */
+  static getInstance(): Logger;
+  /**
+   * Create a child logger with the given context.
+   * Shares the file stream with the root logger.
+   */
+  static getInstance(context: string): Logger;
   static getInstance(context?: string): Logger {
     if (!Logger.instance) {
       Logger.instance = new Logger();
     }
-    
-    // Return a new instance with context if provided
+
     if (context) {
       return new Logger(context);
     }
-    
+
     return Logger.instance;
   }
 
@@ -203,8 +210,8 @@ export class Logger {
     }
     
     // File output
-    if (this.fileStream) {
-      this.fileStream.write(formatted + '\n');
+    if (Logger.sharedFileStream) {
+      Logger.sharedFileStream.write(formatted + '\n');
     }
   }
 
@@ -212,9 +219,11 @@ export class Logger {
    * Flush any pending writes
    */
   async flush(): Promise<void> {
-    if (this.fileStream) {
+    if (Logger.sharedFileStream) {
       return new Promise((resolve) => {
-        this.fileStream!.end(() => resolve());
+        Logger.sharedFileStream!.end(() => resolve());
+        Logger.sharedFileStream = undefined;
+        Logger.fileStreamInitialized = false;
       });
     }
   }

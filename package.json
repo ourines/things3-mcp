@@ -1,6 +1,6 @@
 {
-  "name": "things3-mcp",
-  "version": "0.2.0",
+  "name": "@ourines/things3-mcp",
+  "version": "1.0.0",
   "description": "MCP server for Things3 integration on macOS",
   "main": "dist/index.js",
   "type": "module",
@@ -14,11 +14,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/urbanogardun/things3-mcp.git"
+    "url": "https://github.com/ourines/things3-mcp.git"
   },
-  "homepage": "https://github.com/urbanogardun/things3-mcp#readme",
+  "homepage": "https://github.com/ourines/things3-mcp#readme",
   "bugs": {
-    "url": "https://github.com/urbanogardun/things3-mcp/issues"
+    "url": "https://github.com/ourines/things3-mcp/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
@@ -43,10 +46,10 @@
     "model-context-protocol",
     "productivity"
   ],
-  "author": "",
+  "author": "ourines",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@types/dotenv": "^6.1.1",
     "dotenv": "^16.5.0",
     "zod": "^3.22.0"

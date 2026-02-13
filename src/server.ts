@@ -3,7 +3,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema, type CallToolRequest } from '@modelcontextprotocol/sdk/types.js';
 // No legacy tool types needed anymore
 import { ToolRegistry } from './base/tool-registry.js';
 import { TodosTools } from './tools/todos.js';
@@ -14,6 +14,7 @@ import { BulkTools } from './tools/bulk.js';
 import { LogbookTools } from './tools/logbook.js';
 import { SystemTools } from './tools/system.js';
 import { createLogger } from './utils/logger.js';
+import { registerResources } from './resources.js';
 
 export class Things3Server {
   private server: Server;
@@ -32,11 +33,12 @@ export class Things3Server {
     this.server = new Server(
       {
         name: 'things3-mcp',
-        version: '0.2.0',
+        version: '1.0.0',
       },
       {
         capabilities: {
           tools: {},
+          resources: {},
         },
       },
     );
@@ -54,6 +56,7 @@ export class Things3Server {
     this.systemTools = new SystemTools();
 
     this.registerTools();
+    registerResources(this.server, this.todosTools, this.projectTools, this.areaTools, this.tagTools);
   }
 
   private registerTools(): void {
@@ -90,7 +93,8 @@ export class Things3Server {
     });
 
     // Register the handler for all tool calls
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.server as any).setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
       const { name, arguments: args } = request.params;
 
       // All tools are now handled by the registry!

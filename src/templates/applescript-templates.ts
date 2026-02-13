@@ -782,9 +782,28 @@ export function addTagsToItems(itemIds: string[], tags: string[]): string {
  * Generate AppleScript to remove tags from items
  */
 export function removeTagsFromItems(itemIds: string[], tags: string[]): string {
-  let script = 'tell application "Things3"\n';
+  // Build a reusable subroutine that uses text item delimiters for reliable
+  // tag removal regardless of tag length or special characters.
+  let script = 'on removeTag(tagList, tagToRemove)\n';
+  script += '  set AppleScript\'s text item delimiters to ","\n';
+  script += '  set tagItems to text items of tagList\n';
+  script += '  set newItems to {}\n';
+  script += '  repeat with t in tagItems\n';
+  script += '    -- Trim leading/trailing spaces from each tag\n';
+  script += '    set t to (do shell script "echo " & quoted form of (t as string) & " | sed \'s/^ *//;s/ *$//\'")\n';
+  script += '    if t is not equal to tagToRemove then\n';
+  script += '      set end of newItems to t\n';
+  script += '    end if\n';
+  script += '  end repeat\n';
+  script += '  set AppleScript\'s text item delimiters to ", "\n';
+  script += '  set result to newItems as string\n';
+  script += '  set AppleScript\'s text item delimiters to ""\n';
+  script += '  return result\n';
+  script += 'end removeTag\n\n';
+
+  script += 'tell application "Things3"\n';
   script += '  set updatedCount to 0\n';
-  
+
   for (const itemId of itemIds) {
     const escapedId = bridge.escapeString(itemId);
     script += '  try\n';
@@ -792,36 +811,14 @@ export function removeTagsFromItems(itemIds: string[], tags: string[]): string {
     script += `    set targetItem to to do id "${escapedId}"\n`;
     script += '    set currentTags to tag names of targetItem\n';
     script += '    if currentTags is not missing value and currentTags is not "" then\n';
-    script += '      set hasChanges to false\n';
-    
-    // For each tag to remove, do simple string replacement
+    script += '      set originalTags to currentTags\n';
+
     for (const tag of tags) {
       const escapedTag = bridge.escapeString(tag);
-      script += `      -- Remove "${escapedTag}" from currentTags\n`;
-      script += `      if currentTags contains "${escapedTag}" then\n`;
-      script += `        set hasChanges to true\n`;
-      script += `        -- Try different patterns\n`;
-      script += `        if currentTags is equal to "${escapedTag}" then\n`;
-      script += `          -- Tag is the only one\n`;
-      script += `          set currentTags to ""\n`;
-      script += `        else if currentTags starts with "${escapedTag}, " then\n`;
-      script += `          -- Tag is at the beginning\n`;
-      script += `          set currentTags to text ${escapedTag.length + 3} thru -1 of currentTags\n`;
-      script += `        else if currentTags ends with ", ${escapedTag}" then\n`;
-      script += `          -- Tag is at the end\n`;
-      script += `          set currentTags to text 1 thru ${-(escapedTag.length + 3)} of currentTags\n`;
-      script += `        else\n`;
-      script += `          -- Tag is in the middle\n`;
-      script += `          set AppleScript's text item delimiters to ", ${escapedTag}, "\n`;
-      script += `          set tagParts to text items of currentTags\n`;
-      script += `          set AppleScript's text item delimiters to ", "\n`;
-      script += `          set currentTags to tagParts as string\n`;
-      script += `          set AppleScript's text item delimiters to ""\n`;
-      script += `        end if\n`;
-      script += `      end if\n`;
+      script += `      set currentTags to my removeTag(currentTags, "${escapedTag}")\n`;
     }
-    
-    script += '      if hasChanges then\n';
+
+    script += '      if currentTags is not equal to originalTags then\n';
     script += '        set tag names of targetItem to currentTags\n';
     script += '        set updatedCount to updatedCount + 1\n';
     script += '      end if\n';
@@ -832,30 +829,14 @@ export function removeTagsFromItems(itemIds: string[], tags: string[]): string {
     script += `      set targetItem to project id "${escapedId}"\n`;
     script += '      set currentTags to tag names of targetItem\n';
     script += '      if currentTags is not missing value and currentTags is not "" then\n';
-    script += '        set hasChanges to false\n';
-    
+    script += '        set originalTags to currentTags\n';
+
     for (const tag of tags) {
       const escapedTag = bridge.escapeString(tag);
-      script += `        -- Remove "${escapedTag}" from currentTags\n`;
-      script += `        if currentTags contains "${escapedTag}" then\n`;
-      script += `          set hasChanges to true\n`;
-      script += `          if currentTags is equal to "${escapedTag}" then\n`;
-      script += `            set currentTags to ""\n`;
-      script += `          else if currentTags starts with "${escapedTag}, " then\n`;
-      script += `            set currentTags to text ${escapedTag.length + 3} thru -1 of currentTags\n`;
-      script += `          else if currentTags ends with ", ${escapedTag}" then\n`;
-      script += `            set currentTags to text 1 thru ${-(escapedTag.length + 3)} of currentTags\n`;
-      script += `          else\n`;
-      script += `            set AppleScript's text item delimiters to ", ${escapedTag}, "\n`;
-      script += `            set tagParts to text items of currentTags\n`;
-      script += `            set AppleScript's text item delimiters to ", "\n`;
-      script += `            set currentTags to tagParts as string\n`;
-      script += `            set AppleScript's text item delimiters to ""\n`;
-      script += `          end if\n`;
-      script += `        end if\n`;
+      script += `        set currentTags to my removeTag(currentTags, "${escapedTag}")\n`;
     }
-    
-    script += '        if hasChanges then\n';
+
+    script += '        if currentTags is not equal to originalTags then\n';
     script += '          set tag names of targetItem to currentTags\n';
     script += '          set updatedCount to updatedCount + 1\n';
     script += '        end if\n';
@@ -863,10 +844,10 @@ export function removeTagsFromItems(itemIds: string[], tags: string[]): string {
     script += '    end try\n';
     script += '  end try\n';
   }
-  
+
   script += '  return updatedCount\n';
   script += 'end tell';
-  
+
   return script;
 }
 
@@ -1053,11 +1034,24 @@ tell application "Things3"\n`;
     script += '      end if\n';
   }
   
-  // Apply date range filter (simplified - no date comparisons for now)
+  // Apply date range filter with actual date comparison
   if (fromDate || toDate) {
     script += '      set completionDate to completion date of t\n';
     script += '      if completionDate is missing value then\n';
     script += '        set shouldInclude to false\n';
+    script += '      else\n';
+    if (fromDate) {
+      script += `        set fromDateObj to date "${fromDate}"\n`;
+      script += '        if completionDate < fromDateObj then\n';
+      script += '          set shouldInclude to false\n';
+      script += '        end if\n';
+    }
+    if (toDate) {
+      script += `        set toDateObj to date "${toDate}"\n`;
+      script += '        if completionDate > toDateObj then\n';
+      script += '          set shouldInclude to false\n';
+      script += '        end if\n';
+    }
     script += '      end if\n';
   }
   

@@ -4,13 +4,5 @@
 # Run linting first to catch code quality issues
 npm run lint
 
-# Run unit tests
+# Run unit tests only (integration tests require Things3 running — use `npm run test:all` manually)
 npm run test:unit
-
-# Run integration tests if Things3 is available
-if command -v osascript >/dev/null 2>&1; then
-  echo "🚨 Running integration tests with Things3..."
-  npm run test:integration
-else
-  echo "❌ Skipping integration tests (macOS/AppleScript not available)"
-fi

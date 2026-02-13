@@ -23,6 +23,8 @@ import {
 import * as templates from '../templates/applescript-templates.js';
 import { correctTodoCreateParams, correctTodoUpdateParams, logCorrections } from '../utils/error-correction.js';
 import { urlSchemeHandler } from '../utils/url-scheme.js';
+import { getConfig } from '../config.js';
+import { getChecklistItems } from '../utils/database.js';
 
 /**
  * Handles all TODO-related operations
@@ -114,8 +116,11 @@ export class TodosTools extends BaseTool {
         deadline: todoData.deadline,
         projectId: todoData.projectId,
         areaId: todoData.areaId,
-        // Checklist and reminder would need additional AppleScript
-        checklistItems: [],
+        checklistItems: (await getChecklistItems(todoData.id)).map((ci) => ({
+          id: ci.id,
+          title: ci.title,
+          completed: ci.completed,
+        })),
       };
       
       return todo;
@@ -173,7 +178,7 @@ export class TodosTools extends BaseTool {
       this.logger.info(`Searching for newly created TODO with title: "${correctedParams.title}"`);
       
       // Wait a bit for Things3 to process the creation
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, getConfig().delays.todoSearch));
       
       // Search for the TODO we just created
       let searchResult = await this.listTodos({
@@ -392,6 +397,26 @@ export class TodosTools extends BaseTool {
       throw new Things3Error(
         ErrorType.UNKNOWN,
         'Failed to delete TODOs',
+        error
+      );
+    }
+  }
+
+  /**
+   * Add checklist items to an existing TODO
+   */
+  async addChecklistItems(params: { todoId: string; items: string[] }): Promise<{ success: boolean; addedCount: number }> {
+    try {
+      await this.bridge.ensureThings3Running();
+      await urlSchemeHandler.addChecklistItems(params.todoId, params.items);
+      return { success: true, addedCount: params.items.length };
+    } catch (error) {
+      if (error instanceof Things3Error) {
+        throw error;
+      }
+      throw new Things3Error(
+        ErrorType.UNKNOWN,
+        `Failed to add checklist items to TODO ${params.todoId}`,
         error
       );
     }
@@ -638,6 +663,29 @@ export class TodosTools extends BaseTool {
           required: ['ids'],
         },
         }
+      },
+      {
+        name: 'todos_add_checklist_items',
+        handler: this.addChecklistItems.bind(this),
+        toolDefinition: {
+          name: 'todos_add_checklist_items',
+          description: 'Add checklist items to an existing TODO',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              todoId: {
+                type: 'string',
+                description: 'The TODO ID to add checklist items to',
+              },
+              items: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Checklist item titles to add',
+              },
+            },
+            required: ['todoId', 'items'],
+          },
+        },
       },
     ];
   }

@@ -4,6 +4,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from './logger.js';
+import { getConfig } from '../config.js';
 
 const execAsync = promisify(exec);
 
@@ -59,8 +60,9 @@ export class URLSchemeHandler {
       
       await execAsync(command);
       
-      // Give Things3 more time to process the URL and create the TODO
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Give Things3 time to process the URL scheme command
+      const delay = getConfig().delays.urlScheme;
+      await new Promise(resolve => setTimeout(resolve, delay));
     } catch (error) {
       this.logger.error('Failed to execute URL scheme', error as Error);
       throw new Error(`URL scheme execution failed: ${(error as Error).message}`);
@@ -502,15 +504,10 @@ export class URLSchemeHandler {
    * Add checklist items to an existing TODO
    */
   async addChecklistItems(todoId: string, items: string[]): Promise<void> {
-    // Use JSON format to append checklist items
+    // Things3 update endpoint expects append-checklist-items as a
+    // newline-separated string, not structured JSON objects.
     const attributes: Things3AttributesWithAuth = {
-      'append-checklist-items': items.map(title => ({
-        type: Things3ItemType.CHECKLIST_ITEM,
-        attributes: { 
-          title,
-          completed: false
-        }
-      }))
+      'append-checklist-items': items.join('\n')
     };
 
     // Add auth token for update operations (required by Things3)
@@ -518,14 +515,14 @@ export class URLSchemeHandler {
     if (authToken) {
       attributes['auth-token'] = authToken;
     }
-    
+
     const todo = {
       type: Things3ItemType.TODO,
       id: todoId,
       operation: 'update' as const,
       attributes
     };
-    
+
     const url = this.buildJsonUrl([todo]);
     await this.execute(url);
   }
